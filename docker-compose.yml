@@ -1,0 +1,233 @@
+# AutoKit — n8n (queue mode) + Evolution API
+# Compose v2+ doesn't need a version field.
+
+networks:
+  autokit:
+    name: autokit
+
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-n8n}
+      POSTGRES_USER: ${POSTGRES_USER:-n8n}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      # Consumed by postgres/init/01-evolution-db.sh on FIRST boot only.
+      EVOLUTION_DB_PASSWORD: ${EVOLUTION_DB_PASSWORD:?set in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - autokit
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -h 127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - autokit
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  n8n-main:
+    # Pinned deliberately. Do not change to :latest — see docs/VERSIONS.md
+    image: n8nio/n8n:2.36.8
+    restart: always
+    env_file: .env
+    command: start
+    environment:
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - n8n-data:/home/node/.n8n
+      # Read by `n8n import:workflow` in setup.sh step 7.
+      - ./templates:/templates:ro
+    networks:
+      - autokit
+    # Published only when running without a domain (IP:port mode).
+    # setup.sh comments this out when Traefik/SSL is in use.
+    ports:
+      - "${N8N_PUBLISH_PORT:-127.0.0.1:5678}:5678"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:5678/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    labels:
+      - traefik.enable=${TRAEFIK_ENABLED:-true}
+      - traefik.docker.network=autokit
+
+      # HTTPS router for n8n
+      - traefik.http.routers.n8n.rule=Host(`${N8N_DOMAIN}`)
+      - traefik.http.routers.n8n.entrypoints=websecure
+      - traefik.http.routers.n8n.tls=true
+      - traefik.http.routers.n8n.tls.certresolver=myresolver
+      - traefik.http.routers.n8n.service=n8n
+
+      # Send traffic to container's 5678
+      - traefik.http.services.n8n.loadbalancer.server.port=5678
+      - traefik.http.services.n8n.loadbalancer.server.scheme=http
+
+      # HTTP -> HTTPS redirect
+      - traefik.http.routers.n8n-redirect.rule=Host(`${N8N_DOMAIN}`)
+      - traefik.http.routers.n8n-redirect.entrypoints=web
+      - traefik.http.routers.n8n-redirect.middlewares=to-https
+      - traefik.http.middlewares.to-https.redirectscheme.scheme=https
+
+  n8n-worker:
+    image: n8nio/n8n:2.36.8
+    restart: always
+    command: worker
+    env_file:
+      - .env
+      - .env.worker
+    environment:
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - n8n-data:/home/node/.n8n
+    networks:
+      - autokit
+
+  n8n-runners:
+    image: n8nio/runners:2.36.8
+    container_name: autokit-n8n-runners
+    restart: always
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-main:5679
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT=0
+    depends_on:
+      n8n-main:
+        condition: service_healthy
+      n8n-worker:
+        condition: service_started
+    networks:
+      - autokit
+
+  # Queue mode runs TWO task brokers: one inside n8n-main, one inside
+  # n8n-worker. A single runners container can only attach to one of them, so
+  # any Code node executed by the worker waits out the full task timeout and
+  # dies with "Task request timed out". Two of the three shipped templates
+  # contain a Code node, so without this second runner they fail in queue mode.
+  n8n-runners-worker:
+    image: n8nio/runners:2.36.8
+    container_name: autokit-n8n-runners-worker
+    restart: always
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT=0
+    depends_on:
+      n8n-worker:
+        condition: service_started
+    networks:
+      - autokit
+
+  traefik:
+    image: traefik:v3
+    restart: always
+    profiles: ["domain"]   # only started when a domain was configured
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=autokit
+      # EntryPoints
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # Let's Encrypt ACME
+      - --certificatesresolvers.myresolver.acme.email=${SSL_EMAIL}
+      - --certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.myresolver.acme.httpchallenge=true
+      - --certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web
+      # Logging
+      - --log.level=INFO
+      - --accesslog=true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    networks:
+      - autokit
+
+  evolution-api:
+    # Pinned deliberately. WhatsApp breakage usually follows a blind upgrade.
+    # This exact tag is the one proven in production on the CalliberX VPS.
+    # Note the org: the project publishes as `evoapicloud`, not `atendai`.
+    # Do not change to :latest — see docs/VERSIONS.md
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: always
+    env_file: .env.evolution
+    environment:
+      CONFIG_SESSION_PHONE_VERSION: ${EVOLUTION_PHONE_VERSION:-2.3000.1040516757}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - evolution-instances:/evolution/instances
+    networks:
+      - autokit
+    # Published only in IP:port mode. Behind Traefik this stays on localhost —
+    # Evolution's API key is the only thing between the internet and your
+    # WhatsApp session, so it must not be exposed on 0.0.0.0 by default.
+    ports:
+      - "${EVOLUTION_PUBLISH_PORT:-127.0.0.1:8080}:8080"
+    labels:
+      - traefik.enable=${TRAEFIK_ENABLED:-true}
+      - traefik.docker.network=autokit
+
+      # HTTPS router for the API
+      - traefik.http.routers.evo-api.rule=Host(`${EVOLUTION_DOMAIN}`)
+      - traefik.http.routers.evo-api.entrypoints=websecure
+      - traefik.http.routers.evo-api.tls=true
+      - traefik.http.routers.evo-api.tls.certresolver=myresolver
+
+      # Send traffic to the container's 8080
+      - traefik.http.routers.evo-api.service=evo-api
+      - traefik.http.services.evo-api.loadbalancer.server.port=8080
+      - traefik.http.services.evo-api.loadbalancer.server.scheme=http
+
+      # HTTP -> HTTPS redirect
+      - traefik.http.routers.evo-api-redirect.rule=Host(`${EVOLUTION_DOMAIN}`)
+      - traefik.http.routers.evo-api-redirect.entrypoints=web
+      - traefik.http.routers.evo-api-redirect.middlewares=to-https
+      - traefik.http.middlewares.to-https.redirectscheme.scheme=https
+
+# Managed by Compose. NOT external — a fresh install must be able to create
+# these itself. (The original stack used external volumes, which only worked
+# because they already existed on that machine.)
+volumes:
+  postgres-data:
+  redis-data:
+  n8n-data:
+  evolution-instances:

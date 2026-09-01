@@ -1,0 +1,143 @@
+{
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Send text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send text": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "AutoKit — WhatsApp Notification Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ac38aa18-b40b-45c5-b3f8-d0a5226f6e1b",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -192,
+        0
+      ],
+      "id": "31f470be-20c9-4ad2-a817-d411fd545235",
+      "name": "Webhook",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Whatsapp Notification API Key"
+        }
+      },
+      "webhookId": "ac38aa18-b40b-45c5-b3f8-d0a5226f6e1b"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "YOUR_INSTANCE_NAME",
+        "remoteJid": "={{ $json.body.phone }}",
+        "messageText": "={{ $json.body.message }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api-english.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        480,
+        16
+      ],
+      "id": "37cd91b1-d449-41b1-bc07-645951c192cc",
+      "name": "Send text",
+      "credentials": {
+        "evolutionApi": {
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Optional allowlist. Leave empty to accept any recipient.\n// Add numbers (digits only, e.g. \"972500000000\") to restrict who\n// this webhook is allowed to message.\nconst allowedNumbers = [];\n\nconst phone = $input.first().json.body.phone;\n\nif (allowedNumbers.length > 0 && !allowedNumbers.includes(phone)) {\n  return []; // not allowed — stop here\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        0
+      ],
+      "id": "4f2b9eef-0444-4548-bcb9-c8d32c81b9cc",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        272,
+        0
+      ],
+      "id": "ac8cba46-c4d3-429b-a2d1-316a2456931c",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "content": "## WhatsApp Notification Webhook\n`POST` a JSON body of `{ \"phone\": \"972500000000\", \"message\": \"text\" }` to this webhook and it sends a WhatsApp message.\n\n**Setup**\n1. **Send text** — set your Evolution instance name.\n2. **Webhook** — create a *Header Auth* credential so the endpoint isn't public.\n3. **Code node** — optionally restrict which numbers may be messaged.\n\nRequires the `n8n-nodes-evolution-api-english` community node.",
+        "height": 300,
+        "width": 560,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        -360
+      ],
+      "id": "3ffd966b-493e-4bbd-8adb-602f7c9a46a3",
+      "name": "Sticky Note 22d21d"
+    }
+  ],
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

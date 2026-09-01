@@ -1,0 +1,14 @@
+# Secrets — never commit
+.env
+.env.worker
+.env.evolution
+CREDENTIALS_*.txt
+
+# Runtime
+letsencrypt/
+backups/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

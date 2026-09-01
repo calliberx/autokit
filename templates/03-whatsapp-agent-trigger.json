@@ -1,0 +1,895 @@
+{
+  "connections": {
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only PDF File": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unsupported Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text": {
+      "main": [
+        [
+          {
+            "node": "Unify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audio": {
+      "main": [
+        [
+          {
+            "node": "Unify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image": {
+      "main": [
+        [
+          {
+            "node": "Unify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File": {
+      "main": [
+        []
+      ]
+    },
+    "Input type": {
+      "main": [
+        [
+          {
+            "node": "Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert to Binary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unknown Input Type",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Convert to Image Binary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [
+          {
+            "node": "Unknown Input Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evolution API (Trigger)": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OpenAI Not Configured",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Binary": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Image Binary": {
+      "main": [
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze image": {
+      "main": [
+        [
+          {
+            "node": "Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OpenAI Not Configured",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unify": {
+      "main": [
+        [
+          {
+            "node": "Call 'Agent Manager'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Agent Manager'": {
+      "main": [
+        [
+          {
+            "node": "Agent Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Input type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Input type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "AutoKit — WhatsApp Agent Trigger (Evolution API)",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "b7075978-3637-43fb-80bf-5796640aebee",
+      "name": "Download File",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        976
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "97ece54e-27b5-458d-85ec-0cb3ba21af49",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "position": [
+        928,
+        976
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "f52d2aaa-e0b2-45e5-8c4b-ceef42182a0d",
+              "operator": {
+                "name": "filter.operator.equals",
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.messages[0].document.mime_type }}",
+              "rightValue": "application/pdf"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "58367c25-6e3e-4526-a99a-47644bad33fa",
+      "name": "Only PDF File",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        320,
+        992
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c53cd9f9-77c1-4331-98ff-bfc9bdf95a3c",
+              "name": "text",
+              "type": "string",
+              "value": "={{ $('Evolution API (Trigger)').item.json.body.data.message.conversation }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cb396070-27a9-4ea2-a01a-2991e0065b74",
+      "name": "Text",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        400,
+        16
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "219577d5-b028-48fc-90be-980f4171ab68",
+              "name": "text",
+              "type": "string",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "139af232-a933-4cc5-80da-91ae6e86eebd",
+      "name": "Audio",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        816,
+        352
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "67552183-de2e-494a-878e-c2948e8cb6bb",
+              "name": "text",
+              "type": "string",
+              "value": "=User request on the image:\n{{ \"Describe the following image\" || $('WhatsApp Trigger').item.json.messages[0].image.caption }}\n\nImage description:\n{{ $json.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "79ab767c-6a19-475d-a1ec-0c95bc5c02b4",
+      "name": "Image",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        816,
+        672
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "67552183-de2e-494a-878e-c2948e8cb6bb",
+              "name": "text",
+              "type": "string",
+              "value": "=User request on the file:\n{{ \"Describe this file\" || $('Only PDF File').item.json.messages[0].document.caption }}\n\nFile content:\n{{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0fc4f042-b9e7-42e9-93c3-8f7060c73c41",
+      "name": "File",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1136,
+        976
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "content": "## Text",
+        "height": 240,
+        "width": 332
+      },
+      "id": "d70c800d-7acb-4cf8-8623-40ea14f9fceb",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        240,
+        -48
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Voice",
+        "height": 240,
+        "width": 732
+      },
+      "id": "777acf84-631c-4e32-8474-43bec450784c",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        240,
+        272
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Image",
+        "height": 240,
+        "width": 844
+      },
+      "id": "e3d86c04-29c1-42ce-9397-1dccd86c379b",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        256,
+        592
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Document",
+        "height": 288,
+        "width": 1340
+      },
+      "id": "81124ab1-7f54-49e4-b356-de5ed699d5c8",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        256,
+        928
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "08fd0c80-307e-4f45-b1de-35192ee4ec5e",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.body.data.messageType }}",
+                    "rightValue": "conversation"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b7b64446-f1ea-4622-990c-22f3999a8269",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.body.data.messageType }}",
+                    "rightValue": "audioMessage"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Voice"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "202af928-a324-411a-bf15-68a349e7bf9e",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.body.data.messageType }}",
+                    "rightValue": "imageMessage"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Image"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c63299e9-6069-4bc6-afb9-7beebf6e3d69",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.body.data.messageType }}",
+                    "rightValue": "documentMessage"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Document"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "f6d829ab-b7ee-4c7d-a5e4-b9ce4005bdc9",
+      "name": "Input type",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        -272,
+        560
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "10dc912d-aa5b-41ef-9dd6-0e00aabbaf9f",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -832,
+        608
+      ],
+      "id": "eee5d7f6-4484-4fd1-882c-96912256974e",
+      "name": "Evolution API (Trigger)",
+      "webhookId": "10dc912d-aa5b-41ef-9dd6-0e00aabbaf9f"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "={{ $json.binary.data }}",
+        "options": {
+          "language": "he"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2,
+      "position": [
+        608,
+        352
+      ],
+      "id": "29b8bb21-9706-4525-9a7d-5873a8f4f9d5",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "name": "OpenAI Account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the base64 audio from the webhook\nconst base64Audio = $input.first().json.body.data.message.base64;\nconst mimetype = $input.first().json.body.data.message.audioMessage.mimetype;\n\n\n// Create proper n8n binary data structure\nreturn {\n  binary: {\n    data: {\n      data: base64Audio,\n      mimeType: mimetype || 'audio/ogg',\n      fileName: 'voice.ogg',\n      fileExtension: 'ogg'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        352
+      ],
+      "id": "1ccf9979-ceb4-4c71-99bf-1e134ce12907",
+      "name": "Convert to Binary"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get image data from webhook\nconst message = $input.first().json.body.data.message;\nconst base64Image = message.base64;\n\n// Get mimetype - WhatsApp usually sends as imageMessage\nlet mimetype = message.imageMessage?.mimetype || 'image/jpeg';\n\n// Ensure it's a proper image mimetype\nif (!mimetype.startsWith('image/')) {\n  mimetype = 'image/jpeg'; // Default fallback\n}\n\n// Determine file extension\nlet fileExtension = 'jpg';\nif (mimetype.includes('png')) fileExtension = 'png';\nelse if (mimetype.includes('webp')) fileExtension = 'webp';\nelse if (mimetype.includes('gif')) fileExtension = 'gif';\n\nreturn [{\n  binary: {\n    data: {\n      data: base64Image,\n      mimeType: mimetype,\n      fileName: `image.${fileExtension}`,\n      fileExtension: fileExtension\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        672
+      ],
+      "id": "08ab9323-e43f-45fa-8081-a45c80e6de2d",
+      "name": "Convert to Image Binary"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "You are an advanced image description AI assistant . Your primary function is to provide detailed, accurate descriptions of images submitted through WhatsApp.\n\nCORE FUNCTIONALITY:\n- When presented with an image, you will analyze it thoroughly and provide a comprehensive description in English.\n- Your descriptions should capture both the obvious and subtle elements within the image.\n\nIMAGE DESCRIPTION GUIDELINES:\n- Begin with a broad overview of what the image contains\n- Describe key subjects, people, objects, and their relationships\n- Note significant visual elements such as colors, lighting, composition, and perspective\n- Identify any text visible in the image\n- Describe the setting or environment\n- Mention any notable actions or events taking place\n- Comment on mood, tone, or atmosphere when relevant\n- If applicable, identify landmarks, famous people, or cultural references\n\nRESPONSE FORMAT:\n- Start with \"Image Description:\" followed by your analysis\n- Structure your description in a logical manner (general to specific)\n- Use clear, precise language appropriate for visual description\n- Format longer descriptions with paragraphs to enhance readability\n- End with any notable observations that might require special attention\n\nLIMITATIONS:\n- If the image is blurry, low resolution, or difficult to interpret, acknowledge these limitations\n- If an image contains potentially sensitive content, provide a factual description without judgment\n- Do not make assumptions about elements that cannot be clearly determined\n\nYour descriptions should be informative, objective, and thorough, enabling someone who cannot see the image to form an accurate mental picture of its contents.",
+        "inputType": "base64",
+        "binaryPropertyName": "=data",
+        "options": {
+          "detail": "auto"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2,
+      "position": [
+        592,
+        672
+      ],
+      "id": "27595e10-01db-4612-afcd-8f546aa15aa9",
+      "name": "Analyze image",
+      "credentials": {
+        "openAiApi": {
+          "name": "OpenAI Account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "YOUR_INSTANCE_NAME",
+        "remoteJid": "={{ $('Evolution API (Trigger)').item.json.body.data.key.remoteJid.replace(\"@s.whatsapp.net\", \"\") }}\n",
+        "messageText": "={{ $json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api-english.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1568,
+        352
+      ],
+      "id": "35e66dd9-8047-4279-b4a9-b6d3442e1d77",
+      "name": "Agent Response",
+      "credentials": {
+        "evolutionApi": {
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "YOUR_INSTANCE_NAME",
+        "remoteJid": "={{ $('Evolution API (Trigger)').item.json.body.data.key.remoteJid.replace(\"@s.whatsapp.net\", \"\") }}\n",
+        "messageText": "You can only send text messages, images, audio files and PDF documents.",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api-english.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        16,
+        816
+      ],
+      "id": "91e458fa-e408-4829-9fb0-fe74528f46fc",
+      "name": "Unknown Input Type",
+      "credentials": {
+        "evolutionApi": {
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "YOUR_INSTANCE_NAME",
+        "remoteJid": "={{ $('Evolution API (Trigger)').item.json.body.data.key.remoteJid.replace(\"@s.whatsapp.net\", \"\") }}\n",
+        "messageText": "Sorry but you can only send PDF files",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api-english.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        560,
+        1072
+      ],
+      "id": "02a7ef07-80b2-4b20-b149-29b65a76e3c4",
+      "name": "Unsupported Type",
+      "credentials": {
+        "evolutionApi": {
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d7ea02aa-1727-48fe-960f-c958f703cd0d",
+              "name": "text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        352
+      ],
+      "id": "76e57366-eef4-44eb-9e38-424787c231d0",
+      "name": "Unify"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "text": "={{ $json.text }}",
+            "sessionId": "=whatsapp_{{ $('Evolution API (Trigger)').item.json.body.data.key.remoteJid }}"
+          },
+          "matchingColumns": [
+            "text"
+          ],
+          "schema": [
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "sessionId",
+              "displayName": "sessionId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1344,
+        352
+      ],
+      "id": "426ca2f2-f47c-447e-95da-3be600f32c63",
+      "name": "Call 'Agent Manager'",
+      "disabled": true,
+      "notes": "Point this at YOUR agent workflow, then enable it."
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.data.key.fromMe }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    },
+                    "id": "17ef11dc-e14a-456b-b014-f4a2957e1e40"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "fromMe"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -560,
+        592
+      ],
+      "id": "c94e51b5-7905-42a2-afd4-e713d1ccd8ff",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "YOUR_INSTANCE_NAME",
+        "remoteJid": "={{ $('Evolution API (Trigger)').item.json.body.data.key.remoteJid.replace(\"@s.whatsapp.net\", \"\") }}",
+        "messageText": "=🔑 Audio and image handling need an OpenAI credential. Send a text message instead, or add the credential in n8n.",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api-english.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1180,
+        620
+      ],
+      "id": "804192ae-0dd1-44cb-9e64-540a3fe9a581",
+      "name": "OpenAI Not Configured",
+      "credentials": {
+        "evolutionApi": {
+          "name": "Evolution account"
+        }
+      },
+      "notes": "Fallback when the OpenAI credential is missing or the call fails."
+    },
+    {
+      "parameters": {
+        "content": "## WhatsApp Agent Trigger\nReceives every WhatsApp message from Evolution and routes it by type (text / audio / image / PDF).\n\n**Setup**\n1. Set your Evolution instance name on the three *send* nodes.\n2. In Evolution, point the instance webhook at this workflow's Production URL.\n3. **Call 'Agent Manager' is disabled** — select your own agent workflow there and enable it. Until then the flow runs but produces no reply.\n4. Audio/image need an *OpenAI* credential. Without one the sender gets a clear message instead of an error — text still works.\n\nRequires the `n8n-nodes-evolution-api-english` community node.",
+        "height": 380,
+        "width": 640,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        -420
+      ],
+      "id": "d9636e36-5632-469c-b699-4deb3e68625f",
+      "name": "Sticky Note b77fb8"
+    }
+  ],
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
