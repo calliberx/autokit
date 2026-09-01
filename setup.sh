@@ -76,19 +76,59 @@ command -v openssl >/dev/null 2>&1 \
 command -v python3 >/dev/null 2>&1 \
     || die "python3 is required." "נדרש python3."
 
+# ── Portable probes ──────────────────────────────────────────────────
+# The stack now installs on a laptop as readily as on a VPS, so none of these
+# may assume GNU coreutils. Each returns 0 when it cannot tell, and every
+# caller treats 0 as "unknown, carry on" rather than as a failure.
+detect_ram_mb() {
+    if command -v free >/dev/null 2>&1; then
+        free -m 2>/dev/null | awk '/^Mem:/{print $2}'
+    elif [ "$(uname -s)" = "Darwin" ]; then
+        echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1048576 ))
+    else
+        echo 0
+    fi
+}
+
+detect_free_gb() {
+    if df -BG --output=avail "$1" >/dev/null 2>&1; then
+        df -BG --output=avail "$1" | tail -1 | tr -dc '0-9'
+    else
+        df -g "$1" 2>/dev/null | awk 'NR==2{print $4}'
+    fi
+}
+
+port_taken() {
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn 2>/dev/null | grep -qE "[:.]$1[[:space:]]"
+    elif command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -an 2>/dev/null | grep -qE "[:.]$1[[:space:]].*LISTEN"
+    else
+        return 1
+    fi
+}
+
 # RAM — n8n main + 2 workers + postgres + redis + evolution needs ~4GB.
-TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo 0)
+TOTAL_RAM_MB=$(detect_ram_mb || echo 0)
+TOTAL_RAM_MB=${TOTAL_RAM_MB:-0}
 if [ "$TOTAL_RAM_MB" -gt 0 ] && [ "$TOTAL_RAM_MB" -lt 3600 ]; then
     log_warning "Only ${TOTAL_RAM_MB}MB RAM detected — 4GB is the tested minimum."
     log_warning "זוהו ${TOTAL_RAM_MB}MB בלבד — המינימום המומלץ הוא 4GB."
     read -r -p "$(echo -e "${YELLOW}Continue anyway? (yes/no): ${NC}")" ram_ok
     [ "$ram_ok" = "yes" ] || exit 0
 else
-    log_success "RAM: ${TOTAL_RAM_MB}MB"
+    if [ "$TOTAL_RAM_MB" -gt 0 ]; then
+        log_success "RAM: ${TOTAL_RAM_MB}MB"
+    else
+        log_info "RAM: could not detect — continuing"
+    fi
 fi
 
 # Disk — images alone are ~2.5GB.
-FREE_DISK_GB=$(df -BG --output=avail "$REPO_DIR" 2>/dev/null | tail -1 | tr -dc '0-9' || echo 0)
+FREE_DISK_GB=$(detect_free_gb "$REPO_DIR" || echo 0)
+FREE_DISK_GB=${FREE_DISK_GB:-0}
 if [ "${FREE_DISK_GB:-0}" -gt 0 ] && [ "$FREE_DISK_GB" -lt 10 ]; then
     log_warning "Only ${FREE_DISK_GB}GB free disk — 10GB recommended."
     log_warning "נותרו ${FREE_DISK_GB}GB בלבד — מומלץ לפחות 10GB."
@@ -142,7 +182,7 @@ if [[ "$has_domain" =~ ^[Yy] ]]; then
 
     # Ports 80/443 must be free — Traefik binds them for the ACME challenge.
     for port in 80 443; do
-        if command -v ss >/dev/null 2>&1 && ss -ltn "( sport = :$port )" | grep -q LISTEN; then
+        if port_taken "$port"; then
             die "Port ${port} is already in use — Traefik needs it for SSL." \
                 "פורט ${port} תפוס. עצור את השירות שמשתמש בו ונסה שוב."
         fi
@@ -173,23 +213,33 @@ if [[ "$has_domain" =~ ^[Yy] ]]; then
     N8N_URL="https://$N8N_DOMAIN"
     EVOLUTION_URL="https://$EVOLUTION_DOMAIN"
     TRAEFIK_ENABLED=true
+    ACCESS_HOST="$N8N_DOMAIN"
     N8N_PUBLISH_PORT="127.0.0.1:5678"
     EVOLUTION_PUBLISH_PORT="127.0.0.1:8080"
     COMPOSE_ARGS=(--profile domain)
 else
     USE_DOMAIN=false
-    [ -n "$PUBLIC_IP" ] || prompt_input "This server's public IP" "" PUBLIC_IP
+
+    # A laptop has a public IP too, but nothing is listening on it — the URL
+    # would simply not open. On a desktop OS the reachable address is always
+    # localhost; on a server it is the public one.
+    case "$(uname -s)" in
+        Darwin|MINGW*|MSYS*|CYGWIN*) ACCESS_HOST="localhost" ;;
+        *)  [ -n "$PUBLIC_IP" ] || prompt_input "This server's public IP" "" PUBLIC_IP
+            ACCESS_HOST="$PUBLIC_IP" ;;
+    esac
+    log_info "Reachable at: $ACCESS_HOST"
     log_warning "Running without SSL. Anyone who learns the URL can reach the login page."
     log_warning "המערכת תרוץ ללא SSL. מומלץ להוסיף דומיין בהמשך."
 
     # Placeholders keep Traefik's label templates valid even when disabled.
-    N8N_DOMAIN="$PUBLIC_IP"
-    EVOLUTION_DOMAIN="$PUBLIC_IP"
+    N8N_DOMAIN="$ACCESS_HOST"
+    EVOLUTION_DOMAIN="$ACCESS_HOST"
     SSL_EMAIL="admin@example.com"
     N8N_PROTOCOL=http
-    N8N_HOST="$PUBLIC_IP"
-    N8N_URL="http://$(url_host "$PUBLIC_IP"):5678"
-    EVOLUTION_URL="http://$(url_host "$PUBLIC_IP"):8080"
+    N8N_HOST="$ACCESS_HOST"
+    N8N_URL="http://$(url_host "$ACCESS_HOST"):5678"
+    EVOLUTION_URL="http://$(url_host "$ACCESS_HOST"):8080"
     TRAEFIK_ENABLED=false
     N8N_PUBLISH_PORT="0.0.0.0:5678"
     EVOLUTION_PUBLISH_PORT="0.0.0.0:8080"
@@ -200,11 +250,6 @@ fi
 # publicly without one. The 80/443 check above only covers Traefik, so a clash
 # here surfaces much later as an opaque "port is already allocated" from
 # Compose, long after the .env has been written.
-port_taken() {
-    command -v ss >/dev/null 2>&1 || return 1
-    ss -ltn "( sport = :$1 )" 2>/dev/null | grep -q LISTEN
-}
-
 N8N_BIND="${N8N_PUBLISH_PORT%:*}";        N8N_PORT_NUM="${N8N_PUBLISH_PORT##*:}"
 EVO_BIND="${EVOLUTION_PUBLISH_PORT%:*}";  EVO_PORT_NUM="${EVOLUTION_PUBLISH_PORT##*:}"
 
@@ -222,8 +267,8 @@ done
 N8N_PUBLISH_PORT="${N8N_BIND}:${N8N_PORT_NUM}"
 EVOLUTION_PUBLISH_PORT="${EVO_BIND}:${EVO_PORT_NUM}"
 if [ "$USE_DOMAIN" = false ]; then
-    N8N_URL="http://$(url_host "$PUBLIC_IP"):$N8N_PORT_NUM"
-    EVOLUTION_URL="http://$(url_host "$PUBLIC_IP"):$EVO_PORT_NUM"
+    N8N_URL="http://$(url_host "${ACCESS_HOST:-$PUBLIC_IP}"):$N8N_PORT_NUM"
+    EVOLUTION_URL="http://$(url_host "${ACCESS_HOST:-$PUBLIC_IP}"):$EVO_PORT_NUM"
 fi
 log_success "Ports ${N8N_PORT_NUM} and ${EVO_PORT_NUM} are free"
 
@@ -402,11 +447,16 @@ EOF
 chmod 600 "$CREDENTIALS_FILE"
 log_success "Wrote $CREDENTIALS_FILE"
 
+# bash 3.2 — still the system shell on macOS — treats an empty array under
+# `set -u` as unbound, so COMPOSE_ARGS cannot be expanded directly. This
+# wrapper is the portable form and keeps the call sites readable.
+dc() { docker compose ${COMPOSE_ARGS[@]+"${COMPOSE_ARGS[@]}"} "$@"; }
+
 ###############################################################################
 log_step "Step 5 / 7 — Starting the stack"
 ###############################################################################
 
-docker compose "${COMPOSE_ARGS[@]}" up -d
+dc up -d
 
 echo ""
 log_info "Waiting for n8n to become healthy (up to 3 minutes) ..."
@@ -438,11 +488,11 @@ log_step "Step 6 / 7 — Installing the Evolution node"
 COMMUNITY_PACKAGE="n8n-nodes-evolution-api-english"
 COMMUNITY_VERSION="1.1.2"
 
-if docker compose "${COMPOSE_ARGS[@]}" exec -T n8n-main \
+if dc exec -T n8n-main \
      npm install --prefix /home/node/.n8n/nodes \
      "${COMMUNITY_PACKAGE}@${COMMUNITY_VERSION}" \
      --omit=dev --no-audit --no-fund >/dev/null 2>&1; then
-    docker compose "${COMPOSE_ARGS[@]}" exec -T postgres \
+    dc exec -T postgres \
       psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1 <<SQL
 DELETE FROM installed_nodes    WHERE package = '${COMMUNITY_PACKAGE}';
 DELETE FROM installed_packages WHERE "packageName" = '${COMMUNITY_PACKAGE}';
@@ -452,7 +502,7 @@ INSERT INTO installed_nodes (name,type,"latestVersion",package) VALUES
  ('Evolution API','${COMMUNITY_PACKAGE}.evolutionApi',1,'${COMMUNITY_PACKAGE}'),
  ('Evolution API Trigger','${COMMUNITY_PACKAGE}.evolutionApiTrigger',1,'${COMMUNITY_PACKAGE}');
 SQL
-    docker compose "${COMPOSE_ARGS[@]}" restart n8n-main n8n-worker >/dev/null 2>&1
+    dc restart n8n-main n8n-worker >/dev/null 2>&1
     log_success "Installed ${COMMUNITY_PACKAGE}@${COMMUNITY_VERSION}"
 else
     log_warning "Could not install ${COMMUNITY_PACKAGE} automatically."
@@ -489,14 +539,14 @@ done
 
 if [ "$owner_ready" = true ]; then
     log_success "Account created"
-    OWNER_ID=$(docker compose "${COMPOSE_ARGS[@]}" exec -T postgres \
+    OWNER_ID=$(dc exec -T postgres \
       psql -tAq -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
       -c "SELECT id FROM \"user\" WHERE \"roleSlug\" = 'global:owner' LIMIT 1;" 2>/dev/null | tr -d '[:space:]')
 
     if [ -n "$OWNER_ID" ]; then
         # import:workflow refuses to run without an owner to assign the
         # workflows to, which is why this waits for the account first.
-        if docker compose "${COMPOSE_ARGS[@]}" exec -T n8n-main \
+        if dc exec -T n8n-main \
              n8n import:workflow --separate --input=/templates --userId="$OWNER_ID" >/dev/null 2>&1; then
             log_success "Imported the workflow templates"
         else
@@ -522,7 +572,12 @@ echo ""
 if [ "$USE_DOMAIN" = true ]; then
     echo "  SSL certificates are issued on first request — allow 1-2 minutes."
 else
-    echo "  Running on plain HTTP. Open the firewall for ports ${N8N_PORT_NUM} and ${EVO_PORT_NUM}."
+    if [ "$ACCESS_HOST" = "localhost" ]; then
+        echo "  Running on your own machine. Nothing is exposed to the internet —"
+        echo "  which also means WhatsApp automations stop when the machine sleeps."
+    else
+        echo "  Running on plain HTTP. Open the firewall for ports ${N8N_PORT_NUM} and ${EVO_PORT_NUM}."
+    fi
 fi
 echo ""
 echo "  Already done for you:"

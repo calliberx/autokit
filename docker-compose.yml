@@ -2,8 +2,9 @@
 # Compose v2+ doesn't need a version field.
 
 networks:
+  # Deliberately unnamed: Compose scopes it to the project. A fixed name made
+  # a second install on the same machine collide with the first.
   autokit:
-    name: autokit
 
 services:
   postgres:
@@ -117,7 +118,6 @@ services:
 
   n8n-runners:
     image: n8nio/runners:2.36.8
-    container_name: autokit-n8n-runners
     restart: always
     environment:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-main:5679
@@ -138,7 +138,6 @@ services:
   # contain a Code node, so without this second runner they fail in queue mode.
   n8n-runners-worker:
     image: n8nio/runners:2.36.8
-    container_name: autokit-n8n-runners-worker
     restart: always
     environment:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
