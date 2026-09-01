@@ -293,6 +293,12 @@ QUEUE_BULL_REDIS_PORT=6379
 QUEUE_BULL_REDIS_DB=0
 
 # Runtime
+# Without pruning, every execution is kept forever and Postgres grows until
+# the disk fills — months after install, when nobody is looking. Production
+# keeps one week, which is enough to debug a failure you were told about.
+EXECUTIONS_DATA_PRUNE=true
+EXECUTIONS_DATA_MAX_AGE=168
+
 GENERIC_TIMEZONE=Asia/Jerusalem
 N8N_DEFAULT_LOCALE=en
 N8N_LOG_LEVEL=info
