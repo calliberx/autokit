@@ -10,7 +10,7 @@ Evolution API instance, on a VPS you control.
 
 ## Requirements
 
-- Ubuntu 22.04 or 24.04 VPS, 4GB RAM, 10GB free disk
+- Ubuntu 22.04, 24.04 or 26.04 VPS, 4GB RAM, 10GB free disk
 
   Measured idle usage of the whole stack is roughly 800MB. The 4GB figure is
   headroom for community-node installs and concurrent executions, not the

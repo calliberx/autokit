@@ -139,9 +139,9 @@ if [ -f /etc/os-release ]; then
     . /etc/os-release
     log_info "OS: ${PRETTY_NAME:-unknown}"
     case "${VERSION_ID:-}" in
-        22.04|24.04) : ;;
-        *) log_warning "Tested on Ubuntu 22.04 / 24.04. Other versions may work but are unverified."
-           log_warning "נבדק על Ubuntu 22.04 / 24.04. גרסאות אחרות עלולות לא לעבוד." ;;
+        22.04|24.04|26.04) : ;;
+        *) log_warning "Tested on Ubuntu 22.04 / 24.04 / 26.04. Other versions may work but are unverified."
+           log_warning "נבדק על Ubuntu 22.04 / 24.04 / 26.04. גרסאות אחרות עלולות לא לעבוד." ;;
     esac
 fi
 
